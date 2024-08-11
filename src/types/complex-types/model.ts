@@ -11,7 +11,8 @@ import {
   observe,
   set,
   IObjectDidChange,
-  makeObservable
+  makeObservable,
+  isComputed
 } from "mobx"
 import {
   addHiddenFinalProp,
@@ -57,6 +58,7 @@ import {
   FunctionWithFlag,
   type IStateTreeNode
 } from "../../internal"
+import { isObservableValue } from "mobx/dist/internal"
 
 const PRE_PROCESS_SNAPSHOT = "preProcessSnapshot"
 const POST_PROCESS_SNAPSHOT = "postProcessSnapshot"
@@ -638,10 +640,20 @@ export class ModelType<
   }
 
   getChildNode(node: this["N"], key: string): AnyNode {
-    if (!(key in this.properties)) throw new MstError("Not a value property: " + key)
+    if (!(key in this.properties)) {
+      throw new MstError("Not a value property: " + key)
+    }
+
     const adm = _getAdministration(node.storedValue, key)
+    if (typeof adm.raw !== "function") {
+      throw new MstError(`${key} property was also named as a view/action`)
+    }
+
     const childNode = adm.raw?.()
-    if (!childNode) throw new MstError("Node not available for property " + key)
+    if (!childNode) {
+      throw new MstError(`Node not available for property "${key}"`)
+    }
+
     return childNode
   }
 

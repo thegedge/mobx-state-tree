@@ -208,8 +208,8 @@ describe("Model instantiation", () => {
     applySnapshot(model, { val: 1 })
     expect(onSnapshot).toHaveBeenLastCalledWith({ val: 1 })
   })
-  describe("When a model has duplicate key in actions or views", () => {
-    test("it should show friendly message", () => {
+  describe("When a model has duplicate key", () => {
+    test("in views, it should show friendly message", () => {
       const UserModel = types
         .model("UserModel", {
           id: types.identifier,
@@ -226,7 +226,27 @@ describe("Model instantiation", () => {
           id: "chakri",
           name: "Subramanya Chakravarthy"
         })
-      ).toThrow("[mobx-state-tree] name property is declared twice")
+      ).toThrow("[mobx-state-tree] name property was also named as a view/action")
+    })
+
+    test("in actions, it should show friendly message", () => {
+      const UserModel = types
+        .model("UserModel", {
+          id: types.identifier,
+          name: types.string
+        })
+        .actions((user) => ({
+          name() {
+            return user.name
+          }
+        }))
+
+      expect(() =>
+        UserModel.create({
+          id: "chakri",
+          name: "Subramanya Chakravarthy"
+        })
+      ).toThrow("[mobx-state-tree] name property was also named as a view/action")
     })
   })
   describe("with all of the property types", () => {

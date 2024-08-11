@@ -1,5 +1,13 @@
 // noinspection ES6UnusedImports
-import { action, computed, IComputedValue, reaction, _allowStateChangesInsideComputed } from "mobx"
+import {
+  action,
+  computed,
+  IComputedValue,
+  reaction,
+  _allowStateChangesInsideComputed,
+  type IReactionDisposer,
+  runInAction
+} from "mobx"
 import {
   addHiddenFinalProp,
   ComplexType,
@@ -235,23 +243,30 @@ export class ObjectNode<C, S, T> extends BaseNode<C, S, T> {
     // "_observableInstanceState" field was touched
     ;(this._snapshotComputed as any).trackAndCompute()
 
-    if (this.isRoot) this._addSnapshotReaction()
+    let disposer: IReactionDisposer | null = null
+    if (this.isRoot) {
+      disposer = this._addSnapshotReaction()
+    }
 
     this._childNodes = EMPTY_OBJECT
-
     this.state = NodeLifeCycle.CREATED
 
     if (fireHooks) {
-      this.fireHook(Hook.afterCreate)
-      // Note that the parent might not be finalized at this point
-      // so afterAttach won't be called until later in that case
-      this.finalizeCreation()
+      try {
+        this.fireHook(Hook.afterCreate)
+        // Note that the parent might not be finalized at this point
+        // so afterAttach won't be called until later in that case
+        this.finalizeCreation()
 
-      // fire the hooks of the parents that we created
-      for (const p of parentChain.reverse()) {
-        p.fireHook(Hook.afterCreate)
-        // This will call afterAttach on the child if necessary
-        p.finalizeCreation()
+        // fire the hooks of the parents that we created
+        for (const p of parentChain.reverse()) {
+          p.fireHook(Hook.afterCreate)
+          // This will call afterAttach on the child if necessary
+          p.finalizeCreation()
+        }
+      } catch (e) {
+        disposer?.()
+        throw e
       }
     }
   }
@@ -644,7 +659,7 @@ export class ObjectNode<C, S, T> extends BaseNode<C, S, T> {
     this.type.applyPatchLocally(this, subpath, patch)
   }
 
-  private _addSnapshotReaction(): void {
+  private _addSnapshotReaction() {
     if (!this._hasSnapshotReaction) {
       const snapshotDisposer = reaction(
         () => this.snapshot,
@@ -653,7 +668,9 @@ export class ObjectNode<C, S, T> extends BaseNode<C, S, T> {
       )
       this.addDisposer(snapshotDisposer)
       this._hasSnapshotReaction = true
+      return snapshotDisposer
     }
+    return null
   }
 
   // #region internal event handling
@@ -716,6 +733,7 @@ export class ObjectNode<C, S, T> extends BaseNode<C, S, T> {
 
   // #endregion
 }
+
 ObjectNode.prototype.createObservableInstance = action(
   ObjectNode.prototype.createObservableInstance
 )
